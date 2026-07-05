@@ -1,35 +1,56 @@
+import { createClient, type Client } from "@libsql/client";
 import Database from "better-sqlite3";
 import path from "path";
-
-const DB_PATH = path.join(process.cwd(), "data", "days.db");
-
-// Ensure data directory exists
 import { mkdirSync } from "fs";
-mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-let db: Database.Database;
+let client: Client | Database.Database;
 
-function getDb(): Database.Database {
-  if (!db) {
-    db = new Database(DB_PATH);
+function getClient() {
+  if (client) return client;
+
+  const tursoUrl = process.env.TURSO_URL;
+  const tursoToken = process.env.TURSO_TOKEN;
+
+  if (tursoUrl && tursoToken) {
+    // Turso (cloud)
+    client = createClient({ url: tursoUrl, authToken: tursoToken });
+  } else {
+    // Local SQLite
+    const dbPath = path.join(process.cwd(), "data", "days.db");
+    mkdirSync(path.dirname(dbPath), { recursive: true });
+    const db = new Database(dbPath);
     db.pragma("journal_mode = WAL");
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT NOT NULL UNIQUE,
-        title TEXT NOT NULL,
-        summary TEXT NOT NULL,
-        tags TEXT NOT NULL DEFAULT '[]',
-        raw_content TEXT,
-        meeting_notes TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
-        updated_at TEXT DEFAULT (datetime('now'))
-      );
-      CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date);
-      CREATE INDEX IF NOT EXISTS idx_entries_created ON entries(created_at);
-    `);
+    client = db;
   }
-  return db;
+
+  // Create schema
+  const schema = `
+    CREATE TABLE IF NOT EXISTS entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      tags TEXT NOT NULL DEFAULT '[]',
+      raw_content TEXT,
+      meeting_notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date);
+    CREATE INDEX IF NOT EXISTS idx_entries_created ON entries(created_at);
+  `;
+
+  if ("exec" in client) {
+    client.exec(schema);
+  } else {
+    // Turso client uses execute for multiple statements
+    const stmts = schema.split(";").filter((s) => s.trim());
+    for (const stmt of stmts) {
+      (client as Client).execute(stmt);
+    }
+  }
+
+  return client;
 }
 
 export interface Entry {
@@ -44,7 +65,7 @@ export interface Entry {
   updated_at: string;
 }
 
-export interface EntryRow {
+interface EntryRow {
   id: number;
   date: string;
   title: string;
@@ -66,50 +87,61 @@ function rowToEntry(row: EntryRow): Entry {
 }
 
 export function getAllEntries(month?: string): Entry[] {
-  const conn = getDb();
+  const db = getClient();
   let rows: EntryRow[];
+
   if (month) {
-    rows = conn
-      .prepare("SELECT * FROM entries WHERE strftime('%Y-%m', date) = ? ORDER BY date DESC")
-      .all(month) as EntryRow[];
+    const result = db.execute({
+      sql: "SELECT * FROM entries WHERE strftime('%Y-%m', date) = ? ORDER BY date DESC",
+      args: [month],
+    });
+    rows = result.rows.map((r) => r as unknown as EntryRow);
   } else {
-    rows = conn.prepare("SELECT * FROM entries ORDER BY date DESC").all() as EntryRow[];
+    const result = db.execute("SELECT * FROM entries ORDER BY date DESC");
+    rows = result.rows.map((r) => r as unknown as EntryRow);
   }
+
   return rows.map(rowToEntry);
 }
 
 export function getEntryByDate(date: string): Entry | undefined {
-  const conn = getDb();
-  const row = conn.prepare("SELECT * FROM entries WHERE date = ?").get(date) as EntryRow | undefined;
+  const db = getClient();
+  const result = db.execute({
+    sql: "SELECT * FROM entries WHERE date = ?",
+    args: [date],
+  });
+  const row = result.rows[0] as EntryRow | undefined;
   return row ? rowToEntry(row) : undefined;
 }
 
-export function createEntry(entry: Omit<Entry, "id" | "created_at" | "updated_at">): Entry {
-  const conn = getDb();
-  const result = conn
-    .prepare(
-      `INSERT OR REPLACE INTO entries (date, title, summary, tags, raw_content, meeting_notes, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`
-    )
-    .run(
+export function createEntry(
+  entry: Omit<Entry, "id" | "created_at" | "updated_at">
+): Entry {
+  const db = getClient();
+  db.execute({
+    sql: `INSERT OR REPLACE INTO entries (date, title, summary, tags, raw_content, meeting_notes, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+    args: [
       entry.date,
       entry.title,
       entry.summary,
       JSON.stringify(entry.tags),
       entry.raw_content || null,
-      entry.meeting_notes || null
-    );
+      entry.meeting_notes || null,
+    ],
+  });
   return getEntryByDate(entry.date)!;
 }
 
 export function getAllTags(): string[] {
-  const conn = getDb();
-  const rows = conn.prepare("SELECT tags FROM entries").all() as { tags: string }[];
+  const db = getClient();
+  const result = db.execute("SELECT tags FROM entries");
   const allTags = new Set<string>();
-  rows.forEach((r) => {
+  for (const row of result.rows) {
     try {
-      JSON.parse(r.tags).forEach((t: string) => allTags.add(t));
+      const tags = JSON.parse((row as { tags: string }).tags);
+      tags.forEach((t: string) => allTags.add(t));
     } catch {}
-  });
+  }
   return [...allTags].sort();
 }
