@@ -82,13 +82,13 @@ async function queryOne(sql: string, args: any[] = []): Promise<Record<string, a
   }
 }
 
-async function exec(sql: string, args: any[] = []): Promise<void> {
+async function run(sql: string, params: any[] = []): Promise<void> {
   const db = getClient();
   if (_isTurso) {
-    await (db as Client).execute({ sql, args });
+    await (db as Client).execute({ sql, args: params });
   } else {
     const stmt = (db as BetterSqlite3.Database).prepare(sql);
-    args.length ? stmt.run(...args) : stmt.run();
+    params.length ? stmt.run(...params) : stmt.run();
   }
 }
 
@@ -131,7 +131,7 @@ function rowToEntry(row: Record<string, any>): Entry {
 export async function getAllEntries(month?: string): Promise<Entry[]> {
   if (month) {
     const rows = await queryAll(
-      "SELECT * FROM entries WHERE strftime('%Y-%m', date) = ?1 ORDER BY date DESC",
+      "SELECT * FROM entries WHERE strftime('%Y-%m', date) = ? ORDER BY date DESC",
       [month]
     );
     return rows.map(rowToEntry);
@@ -141,16 +141,16 @@ export async function getAllEntries(month?: string): Promise<Entry[]> {
 }
 
 export async function getEntryByDate(date: string): Promise<Entry | undefined> {
-  const row = await queryOne("SELECT * FROM entries WHERE date = ?1", [date]);
+  const row = await queryOne("SELECT * FROM entries WHERE date = ?", [date]);
   return row ? rowToEntry(row) : undefined;
 }
 
 export async function createEntry(
   entry: Omit<Entry, "id" | "created_at" | "updated_at">
 ): Promise<Entry> {
-  await exec(
+  await run(
     `INSERT OR REPLACE INTO entries (date, title, summary, tags, raw_content, meeting_notes, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'))`,
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
     [
       entry.date,
       entry.title,
