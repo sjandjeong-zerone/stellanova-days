@@ -1,0 +1,324 @@
+"use client";
+
+import { useState, useRef } from "react";
+import { ArrowLeft, Sparkles, Check, Loader2, MessageCircle, FileText } from "lucide-react";
+import Link from "next/link";
+
+export default function CapturePage() {
+  const [tab, setTab] = useState<"chat" | "meeting">("chat");
+
+  // Chat state
+  const [chatText, setChatText] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [results, setResults] = useState<
+    { date: string; title: string; tags: string[]; count: number }[]
+  >([]);
+
+  // Meeting state
+  const [meetingDate, setMeetingDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [meetingTitle, setMeetingTitle] = useState("");
+  const [meetingNotes, setMeetingNotes] = useState("");
+  const [meetingResult, setMeetingResult] = useState<{
+    success: boolean;
+    date: string;
+    title: string;
+  } | null>(null);
+
+  const chatRef = useRef<HTMLTextAreaElement>(null);
+
+  const processChat = async () => {
+    if (!chatText.trim()) return;
+    setProcessing(true);
+    setResults([]);
+
+    try {
+      const res = await fetch("/api/capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: chatText }),
+      });
+      const data = await res.json();
+      setResults(data.results || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const saveMeeting = async () => {
+    if (!meetingNotes.trim() || !meetingTitle.trim()) return;
+    setProcessing(true);
+    setMeetingResult(null);
+
+    try {
+      const res = await fetch("/api/capture/meeting", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: meetingDate,
+          title: meetingTitle,
+          notes: meetingNotes,
+        }),
+      });
+      const data = await res.json();
+      setMeetingResult({ success: true, date: data.date, title: data.title });
+      // Clear form
+      setMeetingNotes("");
+      setMeetingTitle("");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-white">
+      <div className="bg-stellanova text-white text-center py-1.5 text-[11px] sm:text-xs tracking-wide px-4">
+        {tab === "chat"
+          ? "카카오톡 대화를 붙여넣고, 하루 단위로 기록하세요"
+          : "회의록을 날짜별로 저장하세요"}
+      </div>
+
+      <header className="border-b border-gray-100 bg-white/80 backdrop-blur sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <Link
+            href="/"
+            className="flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm">대시보드</span>
+          </Link>
+          <h1 className="text-sm font-medium text-gray-900">기록 캡처</h1>
+          <div className="w-16" />
+        </div>
+      </header>
+
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+        {/* Tab switcher */}
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6">
+          <button
+            onClick={() => setTab("chat")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              tab === "chat"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <MessageCircle className="w-4 h-4" />
+            카카오톡 대화
+          </button>
+          <button
+            onClick={() => setTab("meeting")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              tab === "meeting"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            회의록
+          </button>
+        </div>
+
+        {/* ========== CHAT TAB ========== */}
+        {tab === "chat" && (
+          <>
+            <div className="mb-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-2">
+                카카오톡 대화 붙여넣기
+              </h2>
+              <p className="text-sm text-gray-500">
+                카카오톡 채팅방에서 대화를 복사(Cmd+A → Cmd+C)한 뒤
+                아래에 붙여넣고 &apos;처리하기&apos;를 눌러주세요.
+                날짜별로 자동 구분되어 저장됩니다.
+              </p>
+            </div>
+
+            <textarea
+              ref={chatRef}
+              value={chatText}
+              onChange={(e) => setChatText(e.target.value)}
+              placeholder={`예시:
+2026년 7월 5일 오전 9:15, 이연희 상무: 오늘 발렉스에서 연락왔어요.
+2026년 7월 5일 오전 9:16, 형: 네 확인했습니다!
+2026년 7월 4일 오후 4:30, 형: 시드니 링 추가 주문 가능할까요?`}
+              className="w-full h-64 p-4 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:border-stellanova/30 focus:ring-2 focus:ring-stellanova/10 font-mono leading-relaxed"
+            />
+
+            <button
+              onClick={processChat}
+              disabled={processing || !chatText.trim()}
+              className="mt-4 w-full flex items-center justify-center gap-2 bg-stellanova text-white rounded-xl py-3 text-sm font-medium hover:bg-stellanova/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {processing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  처리 중...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  날짜별로 저장하기
+                </>
+              )}
+            </button>
+
+            {results.length > 0 && (
+              <div className="mt-8">
+                <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                  <Check className="w-4 h-4 text-green-500" />
+                  {results.length}건의 일지가 저장되었습니다
+                </h3>
+                <div className="space-y-2">
+                  {results.map((r) => (
+                    <div
+                      key={r.date}
+                      className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {r.title}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {r.date} · {r.count}개 메시지
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        {r.tags.slice(0, 3).map((t) => (
+                          <span
+                            key={t}
+                            className="px-1.5 py-0.5 rounded text-[10px] bg-stellanova/10 text-stellanova"
+                          >
+                            #{t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Link
+                  href="/"
+                  className="mt-4 inline-flex items-center gap-1 text-sm text-stellanova hover:underline"
+                >
+                  대시보드에서 확인하기 →
+                </Link>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ========== MEETING TAB ========== */}
+        {tab === "meeting" && (
+          <>
+            <div className="mb-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-2">
+                회의록 저장
+              </h2>
+              <p className="text-sm text-gray-500">
+                회의 날짜와 제목을 입력하고, 회의 내용을 붙여넣으세요.
+              </p>
+            </div>
+
+            {/* Date picker */}
+            <div className="mb-4">
+              <label className="block text-xs text-gray-500 mb-1.5">
+                회의 날짜
+              </label>
+              <input
+                type="date"
+                value={meetingDate}
+                onChange={(e) => setMeetingDate(e.target.value)}
+                className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-stellanova/30 focus:ring-2 focus:ring-stellanova/10"
+              />
+            </div>
+
+            {/* Title */}
+            <div className="mb-4">
+              <label className="block text-xs text-gray-500 mb-1.5">
+                회의 제목
+              </label>
+              <input
+                type="text"
+                value={meetingTitle}
+                onChange={(e) => setMeetingTitle(e.target.value)}
+                placeholder="예: 주간 제품 전략 회의"
+                className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-stellanova/30 focus:ring-2 focus:ring-stellanova/10"
+              />
+            </div>
+
+            {/* Meeting notes */}
+            <div className="mb-4">
+              <label className="block text-xs text-gray-500 mb-1.5">
+                회의 내용
+              </label>
+              <textarea
+                value={meetingNotes}
+                onChange={(e) => setMeetingNotes(e.target.value)}
+                placeholder={`예시:
+## 참석자
+- 이연희 상무
+- 형
+
+## 논의 사항
+1. 시드니 라인 3캐럿 추가 검토
+2. 목걸이 라인 확장 계획
+
+## 결정 사항
+- 7월 중 시드니 3캐럿 출시
+- 목걸이 2종 추가 디자인 의뢰`}
+                className="w-full h-64 p-4 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:border-stellanova/30 focus:ring-2 focus:ring-stellanova/10 leading-relaxed"
+              />
+            </div>
+
+            <button
+              onClick={saveMeeting}
+              disabled={
+                processing || !meetingNotes.trim() || !meetingTitle.trim()
+              }
+              className="w-full flex items-center justify-center gap-2 bg-stellanova text-white rounded-xl py-3 text-sm font-medium hover:bg-stellanova/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {processing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  저장 중...
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4" />
+                  회의록 저장하기
+                </>
+              )}
+            </button>
+
+            {meetingResult?.success && (
+              <div className="mt-8">
+                <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                  <Check className="w-4 h-4 text-green-500" />
+                  회의록이 저장되었습니다
+                </h3>
+                <div className="bg-gray-50 rounded-lg px-4 py-3">
+                  <p className="text-sm font-medium text-gray-900">
+                    {meetingResult.title}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {meetingResult.date}
+                  </p>
+                </div>
+                <Link
+                  href="/"
+                  className="mt-4 inline-flex items-center gap-1 text-sm text-stellanova hover:underline"
+                >
+                  대시보드에서 확인하기 →
+                </Link>
+              </div>
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
