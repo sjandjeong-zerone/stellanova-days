@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ date: string }> }
 ) {
   const { date } = await params;
-  const entry = getEntryByDate(date);
+  const entry = await getEntryByDate(date);
 
   if (!entry) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

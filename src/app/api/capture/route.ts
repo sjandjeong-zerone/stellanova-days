@@ -201,10 +201,11 @@ export async function POST(request: NextRequest) {
     const title = generateTitle(messages);
     const tags = extractTags(messages);
     const rawContent = messages.join("\n\n");
-    const existing = getAllEntries().find((e) => e.date === date);
+    const allEntries = await getAllEntries();
+    const existing = allEntries.find((e) => e.date === date);
     const summary = generateNarrativeSummary(rawContent, existing?.meeting_notes);
 
-    createEntry({
+    await createEntry({
       date,
       title,
       summary,

@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const existing = getEntryByDate(date);
+  const existing = await getEntryByDate(date);
 
   // Simple tag extraction from meeting title and notes
   const tagMap: Record<string, string> = {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     .filter(([key]) => combined.includes(key))
     .map(([, tag]) => tag);
 
-  const entry = createEntry({
+  const entry = await createEntry({
     date,
     title,
     summary: existing ? `${existing.summary}\n\n📋 ${title}: ${notes.slice(0, 300)}...` : `📋 ${title}: ${notes.slice(0, 500)}`,
