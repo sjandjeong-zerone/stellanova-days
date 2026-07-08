@@ -50,7 +50,8 @@ async function ensureDb() {
   `;
 
   if (_isTurso) {
-    await (db as Client).execute(schema);
+    await (db as Client).execute("CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL UNIQUE, title TEXT NOT NULL, summary TEXT NOT NULL, tags TEXT NOT NULL DEFAULT '[]', raw_content TEXT, meeting_notes TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')))");
+    await (db as Client).execute("CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date)");
     // Add images column if missing
     try {
       await (db as Client).execute("ALTER TABLE entries ADD COLUMN images TEXT NOT NULL DEFAULT '[]'");
