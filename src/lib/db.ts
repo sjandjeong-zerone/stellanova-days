@@ -31,7 +31,6 @@ function getClient() {
       title TEXT NOT NULL,
       summary TEXT NOT NULL,
       tags TEXT NOT NULL DEFAULT '[]',
-      images TEXT NOT NULL DEFAULT '[]',
       raw_content TEXT,
       meeting_notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
@@ -40,10 +39,16 @@ function getClient() {
     CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date);
   `;
 
+  // Migration: add images column if missing
+  const migrate = `ALTER TABLE entries ADD COLUMN images TEXT NOT NULL DEFAULT '[]'`;
+
   if (_isTurso) {
     (_client as Client).execute(schema);
+    // Safe migration: silently skip if column already exists
+    (_client as Client).execute(migrate).catch(() => {});
   } else {
     (_client as BetterSqlite3.Database).exec(schema);
+    try { (_client as BetterSqlite3.Database).exec(migrate); } catch {}
   }
 
   return _client;

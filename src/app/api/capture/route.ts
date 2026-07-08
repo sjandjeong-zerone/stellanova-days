@@ -21,7 +21,7 @@ function parseKakaoText(text: string): Map<string, string[]> {
       }
       const content = line
         .replace(
-          /^.*?\d{4}[년.\s]+\d{1,2}[월.\s]+\d{1,2}일?\s*[오전오후]?\s*\d{0,2}:\d{0,2},?\s*/,
+          /^.*?\d{4}[년.\s]+\d{1,2}[월.\s]+\d{1,2}일?\s*(?:[월화수목금토일]요일)?\s*[오전오후]?\s*\d{0,2}:\d{0,2},?\s*/,
           ""
         )
         .trim();
