@@ -5,7 +5,7 @@ import { mkdirSync } from "fs";
 
 let _client: Client | BetterSqlite3.Database;
 let _isTurso = false;
-let _migrated = false;
+let _dbReady = false;
 
 function getClient() {
   if (_client) return _client;
@@ -25,6 +25,15 @@ function getClient() {
     _isTurso = false;
   }
 
+  return _client;
+}
+
+// Ensure schema + migrations are applied before any query
+async function ensureDb() {
+  if (_dbReady) return;
+  const db = getClient();
+
+  // Create table if missing
   const schema = `
     CREATE TABLE IF NOT EXISTS entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,42 +50,17 @@ function getClient() {
   `;
 
   if (_isTurso) {
-    (_client as Client).execute(schema);
-  } else {
-    (_client as BetterSqlite3.Database).exec(schema);
-  }
-
-  return _client;
-}
-
-// Async-safe migration: add images column if missing
-async function ensureImagesColumn() {
-  if (_migrated) return;
-  const db = getClient();
-
-  // Check if column already exists by trying a query
-  try {
-    if (_isTurso) {
-      await (db as Client).execute("SELECT images FROM entries LIMIT 1");
-    } else {
-      (db as BetterSqlite3.Database).prepare("SELECT images FROM entries LIMIT 1").get();
-    }
-    _migrated = true;
-    return; // Column exists
-  } catch {
-    // Column missing — add it
-  }
-
-  try {
-    if (_isTurso) {
+    await (db as Client).execute(schema);
+    // Add images column if missing
+    try {
       await (db as Client).execute("ALTER TABLE entries ADD COLUMN images TEXT NOT NULL DEFAULT '[]'");
-    } else {
-      (db as BetterSqlite3.Database).exec("ALTER TABLE entries ADD COLUMN images TEXT NOT NULL DEFAULT '[]'");
-    }
-  } catch (e) {
-    console.error("Migration failed:", e);
+    } catch {}
+  } else {
+    (db as BetterSqlite3.Database).exec(schema);
+    try { (db as BetterSqlite3.Database).exec("ALTER TABLE entries ADD COLUMN images TEXT NOT NULL DEFAULT '[]'"); } catch {}
   }
-  _migrated = true;
+
+  _dbReady = true;
 }
 
 // Unified async-safe query wrapper
@@ -163,7 +147,7 @@ function rowToEntry(row: Record<string, any>): Entry {
 }
 
 export async function getAllEntries(month?: string): Promise<Entry[]> {
-  await ensureImagesColumn();
+  await ensureDb();
   if (month) {
     const rows = await queryAll(
       "SELECT * FROM entries WHERE strftime('%Y-%m', date) = ? ORDER BY date DESC",
@@ -176,7 +160,7 @@ export async function getAllEntries(month?: string): Promise<Entry[]> {
 }
 
 export async function getEntryByDate(date: string): Promise<Entry | undefined> {
-  await ensureImagesColumn();
+  await ensureDb();
   const row = await queryOne("SELECT * FROM entries WHERE date = ?", [date]);
   return row ? rowToEntry(row) : undefined;
 }
@@ -184,7 +168,7 @@ export async function getEntryByDate(date: string): Promise<Entry | undefined> {
 export async function createEntry(
   entry: Omit<Entry, "id" | "created_at" | "updated_at">
 ): Promise<Entry> {
-  await ensureImagesColumn();
+  await ensureDb();
   await run(
     `INSERT OR REPLACE INTO entries (date, title, summary, tags, images, raw_content, meeting_notes, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
@@ -202,7 +186,7 @@ export async function createEntry(
 }
 
 export async function getAllTags(): Promise<string[]> {
-  await ensureImagesColumn();
+  await ensureDb();
   const rows = await queryAll("SELECT tags FROM entries");
   const allTags = new Set<string>();
   for (const row of rows) {
