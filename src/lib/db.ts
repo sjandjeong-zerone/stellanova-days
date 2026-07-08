@@ -5,6 +5,7 @@ import { mkdirSync } from "fs";
 
 let _client: Client | BetterSqlite3.Database;
 let _isTurso = false;
+let _migrated = false;
 
 function getClient() {
   if (_client) return _client;
@@ -39,19 +40,30 @@ function getClient() {
     CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date);
   `;
 
-  // Migration: add images column if missing
-  const migrate = `ALTER TABLE entries ADD COLUMN images TEXT NOT NULL DEFAULT '[]'`;
-
   if (_isTurso) {
     (_client as Client).execute(schema);
-    // Safe migration: silently skip if column already exists
-    (_client as Client).execute(migrate).catch(() => {});
   } else {
     (_client as BetterSqlite3.Database).exec(schema);
-    try { (_client as BetterSqlite3.Database).exec(migrate); } catch {}
   }
 
   return _client;
+}
+
+// Async-safe migration: add images column if missing
+async function ensureImagesColumn() {
+  if (_migrated) return;
+  const db = getClient();
+  const migrate = `ALTER TABLE entries ADD COLUMN images TEXT NOT NULL DEFAULT '[]'`;
+  try {
+    if (_isTurso) {
+      await (db as Client).execute(migrate);
+    } else {
+      (db as BetterSqlite3.Database).exec(migrate);
+    }
+  } catch {
+    // Column already exists — safe to ignore
+  }
+  _migrated = true;
 }
 
 // Unified async-safe query wrapper
@@ -138,6 +150,7 @@ function rowToEntry(row: Record<string, any>): Entry {
 }
 
 export async function getAllEntries(month?: string): Promise<Entry[]> {
+  await ensureImagesColumn();
   if (month) {
     const rows = await queryAll(
       "SELECT * FROM entries WHERE strftime('%Y-%m', date) = ? ORDER BY date DESC",
@@ -150,6 +163,7 @@ export async function getAllEntries(month?: string): Promise<Entry[]> {
 }
 
 export async function getEntryByDate(date: string): Promise<Entry | undefined> {
+  await ensureImagesColumn();
   const row = await queryOne("SELECT * FROM entries WHERE date = ?", [date]);
   return row ? rowToEntry(row) : undefined;
 }
@@ -157,6 +171,7 @@ export async function getEntryByDate(date: string): Promise<Entry | undefined> {
 export async function createEntry(
   entry: Omit<Entry, "id" | "created_at" | "updated_at">
 ): Promise<Entry> {
+  await ensureImagesColumn();
   await run(
     `INSERT OR REPLACE INTO entries (date, title, summary, tags, images, raw_content, meeting_notes, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
@@ -174,6 +189,7 @@ export async function createEntry(
 }
 
 export async function getAllTags(): Promise<string[]> {
+  await ensureImagesColumn();
   const rows = await queryAll("SELECT tags FROM entries");
   const allTags = new Set<string>();
   for (const row of rows) {
