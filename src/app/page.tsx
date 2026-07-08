@@ -10,6 +10,7 @@ interface Entry {
   title: string;
   summary: string;
   tags: string[];
+  images: string[];
   created_at: string;
 }
 
@@ -300,6 +301,23 @@ export default function Home() {
                     <p className="text-xs sm:text-sm text-gray-500 leading-relaxed mb-2 sm:mb-3 line-clamp-3">
                       {entry.summary}
                     </p>
+                    {entry.images && entry.images.length > 0 && (
+                      <div className="flex gap-1 mb-2 overflow-x-auto">
+                        {entry.images.slice(0, 3).map((url, i) => (
+                          <img
+                            key={i}
+                            src={url}
+                            alt=""
+                            className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded-lg border border-gray-200 flex-shrink-0"
+                          />
+                        ))}
+                        {entry.images.length > 3 && (
+                          <span className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-gray-100 text-[10px] text-gray-500 flex-shrink-0">
+                            +{entry.images.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="flex gap-1 flex-wrap">
                       {entry.tags.map((tag) => (
                         <span

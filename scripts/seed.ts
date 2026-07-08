@@ -66,7 +66,7 @@ const seedData = [
 ];
 
 for (const entry of seedData) {
-  createEntry(entry);
+  createEntry({ images: [], ...entry });
   console.log(`✓ ${entry.date} — ${entry.title}`);
 }
 

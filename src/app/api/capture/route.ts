@@ -186,12 +186,13 @@ function generateNarrativeSummary(
 }
 
 export async function POST(request: NextRequest) {
-  const { text } = await request.json();
+  const { text, images } = await request.json();
 
   if (!text || typeof text !== "string") {
     return NextResponse.json({ error: "text is required" }, { status: 400 });
   }
 
+  const imageUrls: string[] = Array.isArray(images) ? images.filter((u: unknown) => typeof u === "string" && u.trim()) : [];
   const byDate = parseKakaoText(text);
   const results: { date: string; title: string; tags: string[]; count: number }[] = [];
 
@@ -204,12 +205,14 @@ export async function POST(request: NextRequest) {
     const allEntries = await getAllEntries();
     const existing = allEntries.find((e) => e.date === date);
     const summary = generateNarrativeSummary(rawContent, existing?.meeting_notes);
+    const mergedImages = [...new Set([...(existing?.images || []), ...imageUrls])];
 
     await createEntry({
       date,
       title,
       summary,
       tags,
+      images: mergedImages,
       raw_content: rawContent,
       meeting_notes: existing?.meeting_notes,
     });

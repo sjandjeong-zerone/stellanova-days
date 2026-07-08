@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Sparkles, Check, Loader2, MessageCircle, FileText, Lock } from "lucide-react";
+import { ArrowLeft, Sparkles, Check, Loader2, MessageCircle, FileText, Lock, ImageIcon, X } from "lucide-react";
 import Link from "next/link";
 
 const ACCESS_PASSWORD = process.env.NEXT_PUBLIC_ACCESS_PASSWORD;
@@ -30,6 +30,22 @@ export default function CapturePage() {
     date: string;
     title: string;
   } | null>(null);
+
+  // Image URLs (shared between tabs)
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [imageInput, setImageInput] = useState("");
+
+  const addImageUrl = () => {
+    const url = imageInput.trim();
+    if (url && !imageUrls.includes(url)) {
+      setImageUrls([...imageUrls, url]);
+    }
+    setImageInput("");
+  };
+
+  const removeImageUrl = (url: string) => {
+    setImageUrls(imageUrls.filter((u) => u !== url));
+  };
 
   const chatRef = useRef<HTMLTextAreaElement>(null);
 
@@ -62,7 +78,7 @@ export default function CapturePage() {
       const res = await fetch("/api/capture", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: chatText }),
+        body: JSON.stringify({ text: chatText, images: imageUrls }),
       });
       const data = await res.json();
       setResults(data.results || []);
@@ -86,6 +102,7 @@ export default function CapturePage() {
           date: meetingDate,
           title: meetingTitle,
           notes: meetingNotes,
+          images: imageUrls,
         }),
       });
       const data = await res.json();
@@ -210,6 +227,41 @@ export default function CapturePage() {
               className="w-full h-64 p-4 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:border-stellanova/30 focus:ring-2 focus:ring-stellanova/10 font-mono leading-relaxed"
             />
 
+            {/* Image URLs */}
+            <div className="mt-4">
+              <label className="block text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                <ImageIcon className="w-3 h-3" />
+                사진 URL (선택)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={imageInput}
+                  onChange={(e) => setImageInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addImageUrl())}
+                  placeholder="https://example.com/photo.jpg"
+                  className="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-stellanova/30 focus:ring-2 focus:ring-stellanova/10"
+                />
+                <button
+                  onClick={addImageUrl}
+                  disabled={!imageInput.trim()}
+                  className="px-3 py-2 text-xs bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 disabled:opacity-40 transition-colors"
+                >
+                  추가
+                </button>
+              </div>
+              {imageUrls.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {imageUrls.map((url) => (
+                    <span key={url} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-lg text-[11px] text-gray-600">
+                      <span className="max-w-[120px] truncate">{url.split("/").pop()}</span>
+                      <button onClick={() => removeImageUrl(url)} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
               onClick={processChat}
               disabled={processing || !chatText.trim()}
@@ -333,6 +385,41 @@ export default function CapturePage() {
 - 목걸이 2종 추가 디자인 의뢰`}
                 className="w-full h-64 p-4 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:border-stellanova/30 focus:ring-2 focus:ring-stellanova/10 leading-relaxed"
               />
+            </div>
+
+            {/* Image URLs */}
+            <div className="mb-4">
+              <label className="block text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                <ImageIcon className="w-3 h-3" />
+                사진 URL (선택)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={imageInput}
+                  onChange={(e) => setImageInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addImageUrl())}
+                  placeholder="https://example.com/photo.jpg"
+                  className="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-stellanova/30 focus:ring-2 focus:ring-stellanova/10"
+                />
+                <button
+                  onClick={addImageUrl}
+                  disabled={!imageInput.trim()}
+                  className="px-3 py-2 text-xs bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 disabled:opacity-40 transition-colors"
+                >
+                  추가
+                </button>
+              </div>
+              {imageUrls.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {imageUrls.map((url) => (
+                    <span key={url} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-lg text-[11px] text-gray-600">
+                      <span className="max-w-[120px] truncate">{url.split("/").pop()}</span>
+                      <button onClick={() => removeImageUrl(url)} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             <button

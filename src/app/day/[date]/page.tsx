@@ -11,6 +11,7 @@ interface Entry {
   title: string;
   summary: string;
   tags: string[];
+  images: string[];
   raw_content?: string;
   meeting_notes?: string;
 }
@@ -99,6 +100,23 @@ export default function DayPage() {
             ))}
           </div>
         </div>
+
+        {/* Images */}
+        {entry.images && entry.images.length > 0 && (
+          <div className="mb-6">
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {entry.images.map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                  <img
+                    src={url}
+                    alt={`이미지 ${i + 1}`}
+                    className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-xl border border-gray-200 hover:ring-2 hover:ring-stellanova/30 transition-all"
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Tab switcher */}
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6">

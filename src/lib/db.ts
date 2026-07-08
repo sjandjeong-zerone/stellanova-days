@@ -31,6 +31,7 @@ function getClient() {
       title TEXT NOT NULL,
       summary TEXT NOT NULL,
       tags TEXT NOT NULL DEFAULT '[]',
+      images TEXT NOT NULL DEFAULT '[]',
       raw_content TEXT,
       meeting_notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
@@ -100,6 +101,7 @@ export interface Entry {
   title: string;
   summary: string;
   tags: string[];
+  images: string[];
   raw_content?: string;
   meeting_notes?: string;
   created_at: string;
@@ -112,6 +114,7 @@ interface EntryRow {
   title: string;
   summary: string;
   tags: string;
+  images: string;
   raw_content?: string | null;
   meeting_notes?: string | null;
   created_at: string;
@@ -123,6 +126,7 @@ function rowToEntry(row: Record<string, any>): Entry {
   return {
     ...r,
     tags: JSON.parse(r.tags || "[]"),
+    images: JSON.parse(r.images || "[]"),
     raw_content: r.raw_content || undefined,
     meeting_notes: r.meeting_notes || undefined,
   };
@@ -149,13 +153,14 @@ export async function createEntry(
   entry: Omit<Entry, "id" | "created_at" | "updated_at">
 ): Promise<Entry> {
   await run(
-    `INSERT OR REPLACE INTO entries (date, title, summary, tags, raw_content, meeting_notes, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+    `INSERT OR REPLACE INTO entries (date, title, summary, tags, images, raw_content, meeting_notes, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     [
       entry.date,
       entry.title,
       entry.summary,
       JSON.stringify(entry.tags),
+      JSON.stringify(entry.images || []),
       entry.raw_content || null,
       entry.meeting_notes || null,
     ]
