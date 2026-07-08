@@ -53,15 +53,28 @@ function getClient() {
 async function ensureImagesColumn() {
   if (_migrated) return;
   const db = getClient();
-  const migrate = `ALTER TABLE entries ADD COLUMN images TEXT NOT NULL DEFAULT '[]'`;
+
+  // Check if column already exists by trying a query
   try {
     if (_isTurso) {
-      await (db as Client).execute(migrate);
+      await (db as Client).execute("SELECT images FROM entries LIMIT 1");
     } else {
-      (db as BetterSqlite3.Database).exec(migrate);
+      (db as BetterSqlite3.Database).prepare("SELECT images FROM entries LIMIT 1").get();
     }
+    _migrated = true;
+    return; // Column exists
   } catch {
-    // Column already exists — safe to ignore
+    // Column missing — add it
+  }
+
+  try {
+    if (_isTurso) {
+      await (db as Client).execute("ALTER TABLE entries ADD COLUMN images TEXT NOT NULL DEFAULT '[]'");
+    } else {
+      (db as BetterSqlite3.Database).exec("ALTER TABLE entries ADD COLUMN images TEXT NOT NULL DEFAULT '[]'");
+    }
+  } catch (e) {
+    console.error("Migration failed:", e);
   }
   _migrated = true;
 }
