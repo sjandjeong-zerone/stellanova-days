@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createEntry, getEntryByDate } from "@/lib/db";
+import { llmSummarize } from "@/lib/llm";
 
 export async function POST(request: NextRequest) {
   const { date, title, notes, images } = await request.json();
@@ -36,10 +37,14 @@ export async function POST(request: NextRequest) {
 
   const mergedImages = [...new Set([...(existing?.images || []), ...imageUrls])];
 
+  // Try LLM summary, fall back to simple concatenation
+  const llm = await llmSummarize({ rawContent: existing?.raw_content, meetingNotes: notes, date });
+  const summary = llm || (existing ? `${existing.summary}\n\n📋 ${title}: ${notes.slice(0, 300)}...` : `📋 ${title}: ${notes.slice(0, 500)}`);
+
   const entry = await createEntry({
     date,
     title,
-    summary: existing ? `${existing.summary}\n\n📋 ${title}: ${notes.slice(0, 300)}...` : `📋 ${title}: ${notes.slice(0, 500)}`,
+    summary,
     tags: [...new Set([...(existing?.tags || []), ...tags, "회의" ])],
     images: mergedImages,
     raw_content: existing?.raw_content || undefined,

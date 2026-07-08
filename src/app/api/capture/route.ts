@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createEntry, getAllEntries } from "@/lib/db";
+import { llmSummarize } from "@/lib/llm";
 
 // Parse KakaoTalk chat text and group by date
 function parseKakaoText(text: string): Map<string, string[]> {
@@ -204,7 +205,9 @@ export async function POST(request: NextRequest) {
     const rawContent = messages.join("\n\n");
     const allEntries = await getAllEntries();
     const existing = allEntries.find((e) => e.date === date);
-    const summary = generateNarrativeSummary(rawContent, existing?.meeting_notes);
+    // Try LLM summary first, fall back to rule-based
+    const llm = await llmSummarize({ rawContent, meetingNotes: existing?.meeting_notes, date });
+    const summary = llm || generateNarrativeSummary(rawContent, existing?.meeting_notes);
     const mergedImages = [...new Set([...(existing?.images || []), ...imageUrls])];
 
     await createEntry({
