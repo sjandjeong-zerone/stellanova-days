@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { ArrowLeft, Sparkles, Check, Loader2, MessageCircle, FileText } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ArrowLeft, Sparkles, Check, Loader2, MessageCircle, FileText, Lock } from "lucide-react";
 import Link from "next/link";
 
+const ACCESS_PASSWORD = process.env.NEXT_PUBLIC_ACCESS_PASSWORD;
+
 export default function CapturePage() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState(false);
   const [tab, setTab] = useState<"chat" | "meeting">("chat");
 
   // Chat state
@@ -27,6 +32,26 @@ export default function CapturePage() {
   } | null>(null);
 
   const chatRef = useRef<HTMLTextAreaElement>(null);
+
+  // Password gate: check sessionStorage on mount
+  useEffect(() => {
+    if (!ACCESS_PASSWORD) {
+      setAuthenticated(true);
+    } else if (sessionStorage.getItem("sd_auth") === "1") {
+      setAuthenticated(true);
+    }
+  }, []);
+
+  const submitPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === ACCESS_PASSWORD) {
+      sessionStorage.setItem("sd_auth", "1");
+      setAuthenticated(true);
+      setPasswordError(false);
+    } else {
+      setPasswordError(true);
+    }
+  };
 
   const processChat = async () => {
     if (!chatText.trim()) return;
@@ -97,6 +122,42 @@ export default function CapturePage() {
         </div>
       </header>
 
+      {!authenticated ? (
+        <main className="max-w-md mx-auto px-4 py-20 text-center">
+          <div className="bg-gray-50 rounded-2xl p-8">
+            <Lock className="w-10 h-10 text-stellanova mx-auto mb-4" />
+            <h2 className="text-lg font-medium text-gray-900 mb-2">
+              비밀번호를 입력하세요
+            </h2>
+            <p className="text-sm text-gray-500 mb-6">
+              기록 캡처 페이지는 비밀번호로 보호되어 있습니다
+            </p>
+            <form onSubmit={submitPassword}>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setPasswordError(false); }}
+                placeholder="비밀번호"
+                autoFocus
+                className={`w-full px-4 py-2.5 text-sm border rounded-xl text-center focus:outline-none focus:ring-2 ${
+                  passwordError
+                    ? "border-red-300 focus:ring-red-100"
+                    : "border-gray-200 focus:border-stellanova/30 focus:ring-stellanova/10"
+                }`}
+              />
+              {passwordError && (
+                <p className="text-red-500 text-xs mt-2">비밀번호가 올바르지 않습니다</p>
+              )}
+              <button
+                type="submit"
+                className="mt-4 w-full bg-stellanova text-white rounded-xl py-2.5 text-sm font-medium hover:bg-stellanova/90 transition-colors"
+              >
+                확인
+              </button>
+            </form>
+          </div>
+        </main>
+      ) : (
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
         {/* Tab switcher */}
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6">
@@ -319,6 +380,7 @@ export default function CapturePage() {
           </>
         )}
       </main>
+      )}
     </div>
   );
 }

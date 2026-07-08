@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 
 interface Entry {
@@ -113,7 +113,14 @@ export default function Home() {
               Days
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/capture"
+              className="flex items-center gap-1 sm:gap-1.5 bg-stellanova text-white rounded-full px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium hover:bg-stellanova/90 transition-colors shadow-sm"
+            >
+              <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              기록 추가
+            </Link>
             <div className="relative">
               <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
